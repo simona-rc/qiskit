@@ -24,18 +24,51 @@ import ddt
 from qiskit import QiskitError
 from qiskit.circuit import Parameter, ParameterExpression, ParameterVector
 from qiskit.circuit.library import efficient_su2
+from qiskit.circuit.library import (
+    CXGate,
+    CYGate,
+    CZGate,
+    HGate,
+    IGate,
+    ECRGate,
+    SdgGate,
+    SGate,
+    SwapGate,
+    iSwapGate,
+    XGate,
+    YGate,
+    ZGate,
+    SXGate,
+    SXdgGate,
+    RXGate,
+    RYGate,
+    RZGate,
+    CPhaseGate,
+    CRXGate,
+    CRYGate,
+    CRZGate,
+    RXXGate,
+    RYYGate,
+    RZZGate,
+    RZXGate,
+    XXMinusYYGate,
+    XXPlusYYGate,
+)
 from qiskit.circuit.parametertable import ParameterView
 from qiskit.compiler.transpiler import transpile
 from qiskit.primitives import BackendEstimatorV2
 from qiskit.providers.fake_provider import GenericBackendV2
-from qiskit.quantum_info import SparseObservable
+from qiskit.quantum_info import SparseObservable, random_clifford, random_pauli_list
 from qiskit.quantum_info.operators import (
+    Clifford,
     Operator,
     Pauli,
     PauliList,
     SparsePauliOp,
 )
 from qiskit.utils import optionals
+
+from .test_pauli import pauli_group_labels
 
 
 def pauli_mat(label):
@@ -833,6 +866,140 @@ class TestSparsePauliOpMethods(QiskitTestCase):
             target = bind_parameters_to_one(target)
         np.testing.assert_allclose(value_mat, target, atol=1e-8)
         np.testing.assert_array_equal(op.paulis.phase, np.zeros(op.size))
+    
+    @combine(
+        gate=(
+            IGate(),
+            XGate(),
+            YGate(),
+            ZGate(),
+            HGate(),
+            SGate(),
+            SdgGate(),
+            SXGate(),
+            SXdgGate(),
+            RXGate(theta=np.pi / 2),
+            RYGate(theta=np.pi / 2),
+            RZGate(phi=np.pi / 2),
+            Clifford(IGate()),
+            Clifford(XGate()),
+            Clifford(YGate()),
+            Clifford(ZGate()),
+            Clifford(HGate()),
+            Clifford(SGate()),
+            Clifford(SdgGate()),
+        )
+    )
+    def test_evolve_clifford1(self, gate):
+        """Test evolve method for 1-qubit Clifford gates."""
+        op = Operator(gate)
+        sparse_pauli_op = SparsePauliOp(pauli_group_labels(1, True))
+        value = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate)]
+        value_h = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate, frame="h")]
+        value_s = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate, frame="s")]
+        if isinstance(gate, Clifford):
+            value_inv = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate.adjoint())]
+        else:
+            value_inv = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate.inverse())]
+        target = [op.adjoint().dot(pauli).dot(op) for pauli in sparse_pauli_op]
+        self.assertListEqual(value, target)
+        self.assertListEqual(value, value_h)
+        self.assertListEqual(value_inv, value_s)
+
+    @combine(
+        gate=(
+            CXGate(),
+            CYGate(),
+            CZGate(),
+            SwapGate(),
+            iSwapGate(),
+            CPhaseGate(theta=np.pi),
+            CRXGate(theta=np.pi),
+            CRYGate(theta=np.pi),
+            CRZGate(theta=np.pi),
+            RXXGate(theta=np.pi / 2),
+            RYYGate(theta=np.pi / 2),
+            RZZGate(theta=np.pi / 2),
+            RZXGate(theta=np.pi / 2),
+            XXMinusYYGate(theta=np.pi),
+            XXPlusYYGate(theta=-np.pi),
+            ECRGate(),
+            Clifford(CXGate()),
+            Clifford(CYGate()),
+            Clifford(CZGate()),
+            Clifford(SwapGate()),
+            Clifford(ECRGate()),
+        )
+    )
+    def test_evolve_clifford2(self, gate):
+        """Test evolve method for 2-qubit Clifford gates."""
+        op = Operator(gate)
+        sparse_pauli_op = SparsePauliOp(pauli_group_labels(2, True))
+        value = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate)]
+        value_h = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate, frame="h")]
+        value_s = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate, frame="s")]
+        if isinstance(gate, Clifford):
+            value_inv = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate.adjoint())]
+        else:
+            value_inv = [Operator(pauli) for pauli in sparse_pauli_op.evolve(gate.inverse())]
+        target = [op.adjoint().dot(pauli).dot(op) for pauli in sparse_pauli_op]
+        self.assertListEqual(value, target)
+        self.assertListEqual(value, value_h)
+        self.assertListEqual(value_inv, value_s)
+
+    def test_phase_dtype_evolve_clifford(self):
+        """Test phase dtype during evolve method for Clifford gates."""
+        gates = (
+            IGate(),
+            XGate(),
+            YGate(),
+            ZGate(),
+            HGate(),
+            SGate(),
+            SdgGate(),
+            CXGate(),
+            CYGate(),
+            CZGate(),
+            SwapGate(),
+            ECRGate(),
+        )
+        dtypes = [
+            int,
+            np.int8,
+            np.uint8,
+            np.int16,
+            np.uint16,
+            np.int32,
+            np.uint32,
+            np.int64,
+            np.uint64,
+        ]
+        for gate, dtype in it.product(gates, dtypes):
+            z = np.ones(gate.num_qubits, dtype=bool)
+            x = np.ones(gate.num_qubits, dtype=bool)
+            phase = (np.sum(z & x) % 4).astype(dtype)
+            paulis = Pauli((z, x, phase))
+            evo = paulis.evolve(gate)
+            self.assertEqual(evo.phase.dtype, dtype)
+
+    @combine(phase=(True, False))
+    def test_evolve_clifford_qargs(self, phase):
+        """Test evolve method for random Clifford"""
+        cliff = random_clifford(3, seed=10)
+        op = Operator(cliff)
+        pauli_list = random_pauli_list(5, 3, seed=10, phase=phase)
+        qargs = [3, 0, 1]
+        value = [Operator(pauli) for pauli in pauli_list.evolve(cliff, qargs=qargs)]
+        value_inv = [Operator(pauli) for pauli in pauli_list.evolve(cliff.adjoint(), qargs=qargs)]
+        value_h = [Operator(pauli) for pauli in pauli_list.evolve(cliff, qargs=qargs, frame="h")]
+        value_s = [Operator(pauli) for pauli in pauli_list.evolve(cliff, qargs=qargs, frame="s")]
+        target = [
+            Operator(pauli).compose(op.adjoint(), qargs=qargs).dot(op, qargs=qargs)
+            for pauli in pauli_list
+        ]
+        self.assertListEqual(value, target)
+        self.assertListEqual(value, value_h)
+        self.assertListEqual(value_inv, value_s)
 
     def test_simplify(self):
         """Test simplify method"""
