@@ -42,6 +42,7 @@ class LegacyDagPass(Pass[DAGCircuit]):
 
 class Mir(mir.Mir, IR):
     """Python IR wrapper around Rust Mir."""
+
     pass
 
 
@@ -65,13 +66,16 @@ def make_bell_circuit():
 
 class TestBellCircuitMIR(unittest.TestCase):
     """Unit tests for lowering Bell circuit to MIR."""
-    
+
     def test_bell_circuit(self):
         print("\n--- Running without Litinski Transformation ---")
         qc = make_bell_circuit()
         pm = LoweringPassManager(
             [CircuitToDag()]
-            + [LegacyDagPass(pass_) for pass_ in generate_preset_pbc_pass_manager().to_flow_controller().tasks]
+            + [
+                LegacyDagPass(pass_)
+                for pass_ in generate_preset_pbc_pass_manager().to_flow_controller().tasks
+            ]
             + [DagToMirPass()]
         )
         mir_instance = pm.run(qc)
@@ -82,12 +86,15 @@ class TestBellCircuitMIR(unittest.TestCase):
         qc = make_bell_circuit()
         pm = LoweringPassManager(
             [CircuitToDag()]
-            + [LegacyDagPass(pass_) for pass_ in generate_preset_pbc_pass_manager().to_flow_controller().tasks]
+            + [
+                LegacyDagPass(pass_)
+                for pass_ in generate_preset_pbc_pass_manager().to_flow_controller().tasks
+            ]
             + [LegacyDagPass(LitinskiTransformation(fix_clifford=False))]
             + [DagToMirPass()]
         )
         mir_instance = pm.run(qc)
-        self.assertIsInstance(mir_instance, mir.Mir)    
+        self.assertIsInstance(mir_instance, mir.Mir)
 
 
 if __name__ == "__main__":

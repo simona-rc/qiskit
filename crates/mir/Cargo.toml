@@ -24,4 +24,3 @@ thiserror.workspace = true
 
 [dev-dependencies]
 itertools.workspace = true
-qiskit-qpy.workspace = true

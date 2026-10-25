@@ -2446,7 +2446,6 @@ dependencies = [
  "itertools 0.15.0",
  "qiskit-circuit",
  "qiskit-passmanager",
- "qiskit-qpy",
  "qiskit-util",
  "rustworkx-core",
  "thiserror 2.0.21",
